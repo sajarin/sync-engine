@@ -1,0 +1,9 @@
+{application, sync_engine,
+ [{description, "Composable, domain-agnostic sync engine (LFE)"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [kernel, stdlib, crypto, cowboy, esqlite]},
+  {env, []},
+  {modules, []},
+  {licenses, ["MIT"]},
+  {links, []}]}.

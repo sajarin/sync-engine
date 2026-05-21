@@ -1,0 +1,7 @@
+/_build/
+/ebin/
+/rebar.lock
+*.beam
+*.dump
+erl_crash.dump
+.rebar3/
