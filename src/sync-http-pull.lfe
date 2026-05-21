@@ -37,7 +37,10 @@
          ((tuple 'ok scope)
           (let* ((store  (maps:get 'store state))
                  (cursor (maps:get #"cursor" m 0))
-                 (limit  (maps:get #"limit" m 500))
+                 ;; Clamp limit to >= 1. A limit of 0 returns an empty
+                 ;; page with has-more set and an unchanged cursor, which
+                 ;; loops a paginating client forever.
+                 (limit  (max 1 (maps:get #"limit" m 500)))
                  (result (sync-engine:pull store scope cursor limit)))
             (tuple 'ok
                    (sync-http-util:reply

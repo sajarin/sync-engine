@@ -72,8 +72,14 @@
 (defun fan-out (scope result)
   (case result
     ((tuple 'ok res)
-     (let ((version (maps:get 'version res)))
-       (lists:foreach
-        (lambda (pid) (! pid (tuple 'sync-updated version)))
-        (pg:get_members (pg-scope) scope))))
+     ;; Only notify subscribers when the push stored something new. An
+     ;; all-duplicate re-push leaves nothing fresh to pull, so a
+     ;; `sync-updated` would just trigger wasted empty pulls.
+     (case (maps:get 'applied res '())
+       ('() 'ok)
+       (_
+        (let ((version (maps:get 'version res)))
+          (lists:foreach
+           (lambda (pid) (! pid (tuple 'sync-updated version)))
+           (pg:get_members (pg-scope) scope))))))
     (_ 'ok)))
