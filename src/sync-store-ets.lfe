@@ -15,7 +15,7 @@
    (get-cursor 2)
    (put-cursor 3)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 (defun changes-table () 'sync-store-ets-changes)
 (defun cursors-table () 'sync-store-ets-cursors)

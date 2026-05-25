@@ -13,7 +13,7 @@
    (max-version 1)
    (pull 3)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 ;;; --- versioning ------------------------------------------------------
 

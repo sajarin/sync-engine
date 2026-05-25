@@ -12,7 +12,7 @@
    (pull-result->json 1)
    (push-result->json 1)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 ;;; --- helpers ---------------------------------------------------------
 

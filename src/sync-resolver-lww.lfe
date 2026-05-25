@@ -8,7 +8,7 @@
   (behaviour sync-resolver)
   (export (resolve 3)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 (defun resolve (incoming existing _ctx)
   (case (winner incoming existing)

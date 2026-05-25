@@ -9,7 +9,7 @@
    (pull 4)
    (push 3)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 (defun pull (store scope cursor limit)
   "Return changes for SCOPE newer than CURSOR via STORE.

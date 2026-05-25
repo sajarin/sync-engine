@@ -20,7 +20,7 @@
    (get-cursor 2)
    (put-cursor 3)))
 
-(include-file "sync-records.lfe")
+(include-lib "sync_engine/include/sync-records.lfe")
 
 ;;; --- connection ------------------------------------------------------
 
