@@ -28,6 +28,10 @@
     (case (sync-core:assign-versions fresh base)
       ((tuple versioned top)
        (call store 'append-changes scope versioned)
+       ;; Project freshly-applied changes into the app's domain tables.
+       ;; The log is already durable; a materializer fault never fails the
+       ;; push (see sync-materializer:apply-changes).
+       (sync-materializer:apply-changes scope versioned)
        (tuple 'ok (map 'acked   ids
                        'applied versioned
                        'version top))))))

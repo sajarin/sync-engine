@@ -13,7 +13,9 @@
    (current-version 1)
    (seen-ids 2)
    (get-cursor 2)
-   (put-cursor 3)))
+   (put-cursor 3)
+   (list-cursors 1)
+   (count-changes 1)))
 
 (include-lib "sync_engine/include/sync-records.lfe")
 
@@ -64,3 +66,16 @@
 (defun put-cursor (scope device-id cursor)
   (ets:insert (cursors-table) (tuple (tuple scope device-id) cursor))
   'ok)
+
+;;; --- observability --------------------------------------------------
+
+(defun list-cursors (scope)
+  "All device cursors for SCOPE -> [#(DeviceId Cursor)]."
+  (ets:select
+   (cursors-table)
+   (list (tuple (tuple (tuple scope '$1) '$2)
+                '()
+                (list (tuple '$1 '$2))))))
+
+(defun count-changes (scope)
+  (length (scope-changes scope)))

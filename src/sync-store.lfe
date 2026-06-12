@@ -21,5 +21,9 @@
     ;; get-cursor(Scope, DeviceId) -> integer
     (tuple 'get-cursor 2)
     ;; put-cursor(Scope, DeviceId, Cursor) -> 'ok
-    (tuple 'put-cursor 3)))
+    (tuple 'put-cursor 3)
+    ;; list-cursors(Scope) -> [#(DeviceId Cursor)]   (observability)
+    (tuple 'list-cursors 1)
+    ;; count-changes(Scope) -> integer               (observability)
+    (tuple 'count-changes 1)))
   ((_) 'undefined))

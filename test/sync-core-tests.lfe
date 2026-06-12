@@ -5,7 +5,10 @@
 ;;;; A proper eunit suite arrives once rebar3_lfe is wired (rebar3 lfe test).
 
 (defmodule sync-core-tests
-  (export (run 0) (run-http 0) (run-sqlite 0) (run-realtime 0)))
+  (export (run 0) (run-http 0) (run-sqlite 0) (run-realtime 0) (run-blob 0)
+          ;; materialize/2: this module doubles as a test materializer; it
+          ;; records each change it sees into the `mat-test` ETS table.
+          (materialize 2)))
 
 (include-file "sync-records.lfe")
 
@@ -261,8 +264,95 @@
   (case (sync-engine:pull 'sync-store-sqlite #"q2" 0 10)
     ((tuple page _next _hm)
      (check "sqlite engine pull count" 1 (length page))))
+  ;; observability callbacks
+  (check "sqlite count-changes" 2 (sync-store-sqlite:count-changes #"q1"))
+  (check "sqlite list-cursors"
+         (list (tuple #"d1" 5))
+         (sync-store-sqlite:list-cursors #"q1"))
   (sync-store-sqlite:close)
   (io:format "sqlite tests passed~n")
+  'ok)
+
+;;; --- blob channel + materializer + rate-limit -----------------------
+;;; Run separately:
+;;;   erl -noshell -pa ebin -pa _build/default/lib/*/ebin \
+;;;       -eval "'sync-core-tests':'run-blob'()." -s init stop
+
+(defun materialize (scope change)
+  (ets:insert 'mat-test (tuple (change-id change) scope))
+  'ok)
+
+(defun run-blob ()
+  (sync-store-sqlite:init ":memory:")
+  (sync-blob-sqlite:ensure-schema)
+  (io:format "sync-blob-sqlite~n")
+  (let* ((bytes #"hello blob world")
+         (hash  (sync-blob-sqlite:sha256-hex bytes)))
+    ;; put / get
+    (check "blob put ok" 'ok
+           (sync-blob-sqlite:put-blob #"b1" hash #"text/plain" bytes))
+    (check "blob hash-mismatch rejected"
+           (tuple 'error 'hash-mismatch)
+           (sync-blob-sqlite:put-blob #"b1" #"deadbeef" #"text/plain" bytes))
+    (check "blob get roundtrip"
+           (tuple 'ok #"text/plain" bytes)
+           (sync-blob-sqlite:get-blob #"b1" hash))
+    (check "blob get miss" 'not-found
+           (sync-blob-sqlite:get-blob #"b1" #"00ff"))
+    ;; have-blobs (batch check)
+    (check "blob have subset"
+           (list hash)
+           (sync-blob-sqlite:have-blobs #"b1" (list hash #"nope")))
+    ;; scope isolation
+    (check "blob scope isolated" 'not-found
+           (sync-blob-sqlite:get-blob #"other" hash))
+    ;; manifest
+    (sync-blob-sqlite:put-manifest
+     #"b1" #"book" #"bk1"
+     (list (map #"hash" hash #"ord" 0 #"meta" (map #"href" #"img/1.png"))))
+    (case (sync-blob-sqlite:get-manifest #"b1" #"book" #"bk1")
+      ((list ref)
+       (check "manifest hash"    hash (maps:get #"hash" ref))
+       (check "manifest present" 'true (maps:get #"present" ref))
+       (check "manifest size"    16 (maps:get #"size" ref))
+       (check "manifest meta"    (map #"href" #"img/1.png") (maps:get #"meta" ref))))
+    ;; stats
+    (check "blob stats"
+           (map #"count" 1 #"totalBytes" 16)
+           (sync-blob-sqlite:blob-stats #"b1"))
+    ;; gc: an unreferenced blob is collected, the referenced one survives
+    (let ((orphan #"orphan bytes"))
+      (sync-blob-sqlite:put-blob #"b1" (sync-blob-sqlite:sha256-hex orphan)
+                                 #"application/octet-stream" orphan)
+      (check "blob gc count" 1 (sync-blob-sqlite:gc-unreferenced #"b1"))
+      (check "blob gc kept referenced"
+             (tuple 'ok #"text/plain" bytes)
+             (sync-blob-sqlite:get-blob #"b1" hash))))
+  ;; materializer: a push projects into the registered module
+  (io:format "sync-materializer~n")
+  (ets:new 'mat-test (list 'named_table 'public 'set))
+  (sync-materializer:set 'sync-core-tests)
+  (sync-engine:push
+   'sync-store-sqlite #"m1"
+   (list (make-change id #"mc1" scope #"m1" entity-id #"e" op 'create)))
+  (check "materializer saw change"
+         (list (tuple #"mc1" #"m1"))
+         (ets:lookup 'mat-test #"mc1"))
+  (sync-materializer:set 'undefined)
+  ;; rate limiter: 3rd hit in a window of 2 is limited
+  (io:format "sync-rate-limit~n")
+  (let ((tier (tuple 2 60000 'scope-device))
+        (ctx  (map 'scope #"u1" 'device-id #"dA")))
+    (check "rl first ok"  'ok (element 1 (sync-rate-limit:check-tier tier ctx)))
+    (check "rl second ok" 'ok (element 1 (sync-rate-limit:check-tier tier ctx)))
+    (check "rl third limited" 'rate_limited
+           (element 1 (sync-rate-limit:check-tier tier ctx)))
+    ;; a different device has its own budget
+    (check "rl other device ok" 'ok
+           (element 1 (sync-rate-limit:check-tier
+                       tier (map 'scope #"u1" 'device-id #"dB")))))
+  (sync-store-sqlite:close)
+  (io:format "blob/materializer/rate-limit tests passed~n")
   'ok)
 
 ;;; --- realtime test (scope gen_server + pg fan-out + SSE) ------------

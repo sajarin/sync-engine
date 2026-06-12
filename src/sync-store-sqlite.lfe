@@ -18,7 +18,9 @@
    (current-version 1)
    (seen-ids 2)
    (get-cursor 2)
-   (put-cursor 3)))
+   (put-cursor 3)
+   (list-cursors 1)
+   (count-changes 1)))
 
 (include-lib "sync_engine/include/sync-records.lfe")
 
@@ -154,3 +156,24 @@
    #"INSERT INTO cursors (scope,device_id,cursor) VALUES (?1,?2,?3) ON CONFLICT(scope,device_id) DO UPDATE SET cursor=excluded.cursor"
    (list scope device-id cursor))
   'ok)
+
+;;; --- observability --------------------------------------------------
+
+(defun list-cursors (scope)
+  "All device cursors for SCOPE -> [#(DeviceId Cursor)]."
+  (lists:map
+   (lambda (r)
+     (case r ((list did cur) (tuple did cur))))
+   (esqlite3:q
+    (conn)
+    #"SELECT device_id, cursor FROM cursors WHERE scope=?1 ORDER BY device_id"
+    (list scope))))
+
+(defun count-changes (scope)
+  "Number of stored changes for SCOPE."
+  (case (esqlite3:q
+         (conn)
+         #"SELECT COUNT(*) FROM changes WHERE scope=?1"
+         (list scope))
+    ((list (list n)) n)
+    (_ 0)))
